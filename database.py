@@ -5,14 +5,16 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
 from sqlalchemy.sql import Insert
 
-Base = declarative_base()
-
 
 def uni_repr(self: Any):
     return '{}({})'.format(
         self.__class__.__name__,
         ', '.join(['{}={}'.format(k, repr(v)) for k, v in self.__dict__.items() if not k.startswith('_')])
     )
+
+
+Base = declarative_base()
+Base.__repr__ = lambda self: uni_repr(self)
 
 rent_operations = Table(
     'rent_operations',
@@ -28,18 +30,12 @@ class FirstName(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     first_name = Column(String(50), unique=True, nullable=False)
 
-    def __repr__(self):
-        return uni_repr(self)
-
 
 class LastName(Base):
     __tablename__ = 'last_names'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     last_name = Column(String(50), unique=True, nullable=False)
-
-    def __repr__(self):
-        return uni_repr(self)
 
 
 class Client(Base):
@@ -56,9 +52,6 @@ class Client(Base):
         UniqueConstraint('passport_serial', 'passport_number', name='passport_info'),
     )
 
-    def __repr__(self):
-        return uni_repr(self)
-
 
 class Rent(Base):
     __tablename__ = 'rents'
@@ -71,9 +64,6 @@ class Rent(Base):
     from_date = Column(Date, nullable=False)
     to_date = Column(Date, nullable=False)
 
-    def __repr__(self):
-        return uni_repr(self)
-
 
 class HotelNumber(Base):
     __tablename__ = 'hotel_numbers'
@@ -82,7 +72,10 @@ class HotelNumber(Base):
     price_per_night = Column(Float, nullable=False)
     description = Column(String(1000))
 
-    def __repr__(self):
-        return uni_repr(self)
 
+class User(Base):
+    __tablename__ = 'users'
 
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(20), nullable=False)
+    password_hash = Column(String(100), nullable=False)

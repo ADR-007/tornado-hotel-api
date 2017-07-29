@@ -1,44 +1,48 @@
 import os
-import json
+from http import HTTPStatus
 
 import datetime
 import tornado.web
 import tornado.options
 import tornado.httpserver
 import tornado.ioloop
+import tornado.escape
 from sqlalchemy import create_engine, or_, and_
 from sqlalchemy.orm import sessionmaker
+from passlib.hash import pbkdf2_sha256
 
-from database import Client, FirstName, LastName, Rent, HotelNumber
+from database import Client, FirstName, LastName, Rent, HotelNumber, User
 from tools import get_first_name_id, get_last_name_id, serialize
 
 DATE_FORMAT = "%Y-%m-%d"
 
-tornado.options.define("port", default=8888, help="run on the given port", type=int)
+tornado.options.define('port', default=8888, help='Run on the given port', type=int)
+tornado.options.define('database_connection_string', default='sqlite:///hotel.db', help='Select database', type=str)
 
 
 class Application(tornado.web.Application):
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
         handlers = [
-            (r"/", RootHandler),
+            # (r"/", RootHandler),
+            (r"/login", LoginHandler),
+            (r"/logout", LogoutHandler),
             (r"/client", ClientHandler),
             (r"/client/(\d+)", ClientHandler),
             (r"/rent", RentHandler),
             (r"/rent/(\d+)", RentHandler),
-            (r"/numbers/free", FreeNumbersHandler),
-            (r"/numbers/free/([^/]+)", FreeNumbersHandler),
-            (r"/numbers/rented", RentedNumbersHandler),
-            (r"/numbers/rented/([^/]+)", RentedNumbersHandler),
+            (r"/number", NumbersHandler),
+            (r"/number/(\d+)", NumbersHandler),
         ]
         settings = dict(
             template_path=os.path.join(os.path.dirname(__file__), "templates"),
             static_path=os.path.join(os.path.dirname(__file__), "static"),
             # xsrf_cookies=True,
-            # cookie_secret="11oETzKXQAGaYdkL5gEmGeJJFuYh7EQnp2XdTP1o/Vo=",
+            cookie_secret="7Lslp9eZT;-B2D6/L6=mGppMJZj=<_Giw#;$CCTD6m8sp=-9f|",
+            login_url="/login",
         )
-        tornado.web.Application.__init__(self, handlers, **settings)
+        tornado.web.Application.__init__(self, handlers, *args, **{**kwargs, **settings})
 
-        self.db_engine = create_engine('sqlite:///hotel.db', echo=True)
+        self.db_engine = create_engine(tornado.options.options.database_connection_string)
         self.db_session_maker = sessionmaker(bind=self.db_engine)
         self.db_session = self.db_session_maker()
 
@@ -51,13 +55,48 @@ class BaseHandler(tornado.web.RequestHandler):
     def data_received(self, chunk):
         return super().data_received(chunk)
 
+    def get_current_user(self):
+        return self.get_secure_cookie("user")
 
-class RootHandler(BaseHandler):
-    def get(self, *args, **kwargs):
-        self.write('<info will be here>')
+
+class LoginHandler(BaseHandler):
+    def get(self):
+        if self.current_user:
+            self.write(f'You already login as {self.current_user.decode()}')
+        else:
+            raise tornado.web.HTTPError(HTTPStatus.UNAUTHORIZED)
+
+    def post(self):
+        username = self.get_argument('username', '')
+        password = self.get_argument('password', '')
+        auth = self.check_permission(password, username)
+        if auth:
+            self.set_current_user(username)
+        else:
+            raise tornado.web.HTTPError(HTTPStatus.UNAUTHORIZED)
+
+    def check_permission(self, username, password):
+        rows = self.db_session.query(User.password_hash).filter(User.name == username).first()
+        if rows:
+            return pbkdf2_sha256.verify(password, rows[0])
+        else:
+            return False
+
+    def set_current_user(self, user):
+        if user:
+            self.set_secure_cookie("user", tornado.escape.json_encode(user))
+        else:
+            self.clear_cookie("user")
+
+
+class LogoutHandler(BaseHandler):
+    def get(self):
+        self.clear_cookie('user')
+        self.redirect(self.get_argument('next', '/'))
 
 
 class ClientHandler(BaseHandler):
+    @tornado.web.authenticated
     def get(self, client_id=None):
         keys = Client.id, FirstName.first_name, LastName.last_name, Client.age, \
                Client.passport_serial, Client.passport_number
@@ -70,6 +109,7 @@ class ClientHandler(BaseHandler):
 
         self.write(serialize(keys, query.all()))
 
+    @tornado.web.authenticated
     def post(self):
         self.db_session.add(
             Client(
@@ -83,17 +123,18 @@ class ClientHandler(BaseHandler):
         self.db_session.commit()
         self.write('Added.')
 
+    @tornado.web.authenticated
     def delete(self, client_id=None):
         if client_id is None:
-            tornado.web.HTTPError(400)
+            tornado.web.HTTPError(HTTPStatus.BAD_REQUEST)
+        else:
+            self.db_session.query(Client).filter(Client.id == client_id).delete()
+            self.db_session.commit()
 
-        self.db_session.query(Client).filter(Client.id == client_id).delete()
-        self.db_session.commit()
-        self.write('Deleted.')
-
+    @tornado.web.authenticated
     def put(self, client_id=None):
         if client_id is None:
-            tornado.web.HTTPError(400)
+            tornado.web.HTTPError(HTTPStatus.BAD_REQUEST)
 
         self.db_session.query(Client).filter(Client.id == client_id).update({
             Client.first_name_id: get_first_name_id(self.db_session, self.get_argument('first_name')),
@@ -103,10 +144,10 @@ class ClientHandler(BaseHandler):
             Client.passport_number: self.get_argument('passport_number'),
         })
         self.db_session.commit()
-        self.write('Updated.')
 
 
 class RentHandler(BaseHandler):
+    @tornado.web.authenticated
     def get(self, rent_id=None):
         keys = (Rent.id, Rent.hotel_number, Rent.from_date, Rent.to_date, Rent.total_price, Client.id)
         query = self.db_session.query(*keys).join((Client, Rent.clients))
@@ -115,8 +156,9 @@ class RentHandler(BaseHandler):
 
         self.write(serialize(keys, query.all()))
 
+    @tornado.web.authenticated
     def post(self):
-        price_per_day = self.db_session.query(HotelNumber.price_per_night)\
+        price_per_day = self.db_session.query(HotelNumber.price_per_night) \
             .filter(HotelNumber.number == int(self.get_argument('hotel_number'))).one()[0]
 
         from_date = datetime.datetime.strptime(self.get_argument('from_date'), DATE_FORMAT).date()
@@ -131,8 +173,9 @@ class RentHandler(BaseHandler):
         ))
 
         self.db_session.commit()
-        self.write('Added.')
+        self.set_status(HTTPStatus.CREATED)
 
+    @tornado.web.authenticated
     def delete(self, rent_id=None):
         if rent_id is None:
             tornado.web.HTTPError(400)
@@ -141,6 +184,7 @@ class RentHandler(BaseHandler):
         self.db_session.commit()
         self.write('Deleted.')
 
+    @tornado.web.authenticated
     def put(self, rent_id=None):
         if rent_id is None:
             tornado.web.HTTPError(400)
@@ -151,22 +195,27 @@ class RentHandler(BaseHandler):
         self.write('Updated.')
 
 
-class FreeNumbersHandler(BaseHandler):
-    def get(self, date=None):
-        if date:
-            target_date = datetime.datetime.strptime(date, DATE_FORMAT).date()
-        else:
-            target_date = datetime.datetime.now()
-
+class NumbersHandler(BaseHandler):
+    def get(self, number=None):
         keys = HotelNumber.number, HotelNumber.price_per_night, HotelNumber.description
-        self.write(serialize(
-            keys,
-            self.db_session.query(*keys)
-                .join(Rent)
-                .filter(or_(Rent.from_date > target_date,
-                            Rent.to_date < target_date))
-                .all()
-        ))
+        query = self.db_session.query(*keys).join(Rent)
+        if number:
+            query = query.filter(Rent.hotel_number == int(number))
+        else:
+            state = self.get_argument('with_state', None)
+            at_date_str = self.get_argument('at_date', None)
+            if at_date_str:
+                at_date = datetime.datetime.strptime(at_date_str, DATE_FORMAT).date()
+            else:
+                at_date = datetime.datetime.now()
+
+            if state == 'free':
+                query = query.filter(or_(Rent.from_date > at_date,
+                                         Rent.to_date < at_date))
+            elif state == 'rented':
+                query = query.filter(and_(Rent.from_date < at_date,
+                                          Rent.to_date > at_date))
+        self.write(serialize(keys, query.all()))
 
 
 class RentedNumbersHandler(BaseHandler):
@@ -182,7 +231,7 @@ class RentedNumbersHandler(BaseHandler):
             self.db_session.query(*keys)
                 .join(Rent)
                 .filter(and_(Rent.from_date < target_date,
-                            Rent.to_date > target_date))
+                             Rent.to_date > target_date))
                 .all()
         ))
 

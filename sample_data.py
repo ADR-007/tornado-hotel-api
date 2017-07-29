@@ -3,11 +3,13 @@ import datetime
 from sqlalchemy import create_engine, or_
 from sqlalchemy.orm import sessionmaker
 
-from database import Base, FirstName, LastName, Client, Rent, HotelNumber
+from passlib.hash import pbkdf2_sha256
+
+from database import Base, FirstName, LastName, Client, Rent, HotelNumber, User
 
 
 def insert_sample_data_to_database():
-    engine = create_engine('sqlite:///hotel.db', echo=True)
+    engine = create_engine('sqlite:///hotel.db', echo=False)
     Base.metadata.drop_all(engine)
     Base.metadata.create_all(engine)
 
@@ -16,10 +18,10 @@ def insert_sample_data_to_database():
     session = Session()
 
     clients = [
-        Client(first_name_id=1, last_name_id=1, age=18, passport_serial='FB', passport_number='12345678'),
-        Client(first_name_id=2, last_name_id=2, age=20, passport_serial='FB', passport_number='31313131'),
-        Client(first_name_id=3, last_name_id=2, age=22, passport_serial='FF', passport_number='23232323'),
-        Client(first_name_id=2, last_name_id=3, age=22, passport_serial='FE', passport_number='12121212'),
+        Client(first_name_id=1, last_name_id=1, age=18, passport_serial='FB', passport_number='123456789'),
+        Client(first_name_id=2, last_name_id=2, age=20, passport_serial='FB', passport_number='313131313'),
+        Client(first_name_id=3, last_name_id=2, age=22, passport_serial='FF', passport_number='232323232'),
+        Client(first_name_id=2, last_name_id=3, age=22, passport_serial='FE', passport_number='121212121'),
     ]
 
     rents = [
@@ -57,9 +59,9 @@ def insert_sample_data_to_database():
         HotelNumber(number=2, price_per_night=10.0, description='Cheap'),
         HotelNumber(number=3, price_per_night=10.0, description='Cheap'),
         *clients,
-        *rents
+        *rents,
+        User(name='admin', password_hash=pbkdf2_sha256.hash('admin'))
     ])
-
     session.commit()
     session.close()
 

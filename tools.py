@@ -27,5 +27,6 @@ def get_last_name_id(session, name):
 
 def serialize(keys, values_list):
     return json.dumps(
-        [{k.key: str(v) if isinstance(v, datetime.date) else v for k, v in zip(keys, row)} for row in values_list]
+        [{str(k): str(v) if isinstance(v, datetime.date) else v for k, v in zip(keys, row)} for row in values_list]
     )
+
