@@ -121,7 +121,6 @@ class ClientHandler(BaseHandler):
             )
         )
         self.db_session.commit()
-        self.write('Added.')
 
     @tornado.web.authenticated
     def delete(self, client_id=None):
@@ -173,29 +172,28 @@ class RentHandler(BaseHandler):
         ))
 
         self.db_session.commit()
-        self.set_status(HTTPStatus.CREATED)
+        self.set_status(HTTPStatus.OK)
 
     @tornado.web.authenticated
     def delete(self, rent_id=None):
         if rent_id is None:
-            tornado.web.HTTPError(400)
+            raise tornado.web.HTTPError(HTTPStatus.BAD_REQUEST)
 
         self.db_session.query(Rent).filter(Rent.id == rent_id).delete()
         self.db_session.commit()
-        self.write('Deleted.')
 
     @tornado.web.authenticated
     def put(self, rent_id=None):
         if rent_id is None:
-            tornado.web.HTTPError(400)
+            raise tornado.web.HTTPError(HTTPStatus.BAD_REQUEST)
 
         self.db_session.query(Rent).filter(Rent.id == rent_id).update({
         })
         self.db_session.commit()
-        self.write('Updated.')
 
 
 class NumbersHandler(BaseHandler):
+    @tornado.web.authenticated
     def get(self, number=None):
         keys = HotelNumber.number, HotelNumber.price_per_night, HotelNumber.description
         query = self.db_session.query(*keys).join(Rent)
@@ -217,23 +215,33 @@ class NumbersHandler(BaseHandler):
                                           Rent.to_date > at_date))
         self.write(serialize(keys, query.all()))
 
+    @tornado.web.authenticated
+    def post(self):
+        self.db_session.add(
+            HotelNumber(
+                number=self.get_argument('number'),
+                price_per_night=self.get_argument('price_per_night '),
+                description=self.get_argument('description '),
+            )
+        )
+        self.db_session.commit()
 
-class RentedNumbersHandler(BaseHandler):
-    def get(self, date=None):
-        if date:
-            target_date = datetime.datetime.strptime(date, DATE_FORMAT).date()
-        else:
-            target_date = datetime.datetime.now()
+    @tornado.web.authenticated
+    def delete(self, number=None):
+        if number is None:
+            raise tornado.web.HTTPError(HTTPStatus.BAD_REQUEST)
 
-        keys = HotelNumber.number, HotelNumber.price_per_night, HotelNumber.description
-        self.write(serialize(
-            keys,
-            self.db_session.query(*keys)
-                .join(Rent)
-                .filter(and_(Rent.from_date < target_date,
-                             Rent.to_date > target_date))
-                .all()
-        ))
+        self.db_session.query(HotelNumber).filter(HotelNumber.number == number).delete()
+        self.db_session.commit()
+
+    @tornado.web.authenticated
+    def put(self, number=None):
+        if number is None:
+            raise tornado.web.HTTPError(HTTPStatus.BAD_REQUEST)
+
+        self.db_session.query(HotelNumber).filter(HotelNumber.id == number).update({
+        })
+        self.db_session.commit()
 
 
 if __name__ == '__main__':
