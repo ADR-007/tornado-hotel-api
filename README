@@ -1,0 +1,64 @@
+API for simple hotel database
+=======================================
+
+Accept next commands:
+---------------------------------------
+GET     /login                          - check login status
+POST    /login                          - login
+
+GET     /logout                         - logout
+
+
+GET     /client                         - get list of all clients
+GET     /client?id=<>                   - get client with target id
+POSt    /client?first_name_id=<>
+               &last_name_id=<>
+               &age=<>
+               &passport_serial=<>
+               &passport_number=<>      - add new user
+POSt    /client?id=<>
+               &first_name_id=<>
+               &last_name_id=<>
+               &age=<>
+               &passport_serial=<>
+               &passport_number=<>      - change user with target id
+DELETE  /client?id=<>                   - delete user with target id
+
+
+GET     /rent                           - get list of all rents
+GET     /rent?id=<>                     - get rent with target id
+POST    /rent?hotel_number=<>
+             &total_price=<>
+             &from_date=<>
+             &to_date=<>
+             &client_id=<>
+             &client_id=<>
+             ...
+             &client_id=<>              - add new rent
+PUT     /rent?id=<>
+             &hotel_number=<>
+             &total_price=<>
+             &from_date=<>
+             &to_date=<>
+             &client_id=<>
+             &client_id=<>
+             ...
+             &client_id=<>              - add new rent
+DELETE  /rent?id=<>                     - delete rent
+
+
+GET     /number                         - get list of all hotel numbers
+GET     /number?number=<>               - get data of target number
+GET     /number?state=free              - get list of all hotel numbers that are free now
+GET     /number?state=rented            - get list of all hotel numbers that are rented now (including data of rents and clients)
+GET     /number?state=free
+               &at_date=<>              - get list of all hotel numbers that are free at target date
+GET     /number?state=rented
+               &at_date=<>              - get list of all hotel numbers that are free at target date (including data of rents and clients)
+POST    /number?number=<>
+               &price_per_night=<>
+               &description=<>          - add new number
+POST    /number?number=<>
+               &price_per_night=<>
+               &description=<>          - change target number
+DELETE  /number/number=<>               - delete target number
