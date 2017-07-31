@@ -43,8 +43,8 @@ PUT     /rent?id=<>
              &client_id=<>
              &client_id=<>
              ...
-             &client_id=<>              - add new rent
-DELETE  /rent?id=<>                     - delete rent
+             &client_id=<>              - change target rent
+DELETE  /rent?id=<>                     - delete target rent
 
 
 GET     /number                         - get list of all hotel numbers
