@@ -50,11 +50,13 @@ DELETE  /rent?id=<>                     - delete rent
 GET     /number                         - get list of all hotel numbers
 GET     /number?number=<>               - get data of target number
 GET     /number?state=free              - get list of all hotel numbers that are free now
-GET     /number?state=rented            - get list of all hotel numbers that are rented now (including data of rents and clients)
+GET     /number?state=rented            - get list of all hotel numbers that are rented now 
+                                          (including data of rents and clients)
 GET     /number?state=free
                &at_date=<>              - get list of all hotel numbers that are free at target date
 GET     /number?state=rented
-               &at_date=<>              - get list of all hotel numbers that are free at target date (including data of rents and clients)
+               &at_date=<>              - get list of all hotel numbers that are free at target date 
+                                          (including data of rents and clients)
 POST    /number?number=<>
                &price_per_night=<>
                &description=<>          - add new number
